@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: frontend_app
+    restart: always
+    ports:
+      - "9001:9001"
+    volumes:
+      - ./frontend:/frontend
+    networks:
+      - app-network
+
+# Comenta o elimina las siguientes líneas si quieres iniciar solo el frontend
+#  backend:
+#    build:
+#      context: ./backend
+#      dockerfile: Dockerfile
+#    container_name: backend_app
+#    restart: always
+#    ports:
+#      - "3000:3000"
+#    volumes:
+#      - ./backend:/backend
+#    networks:
+#      - app-network
+
+networks:
+  app-network:
+    driver: bridge
