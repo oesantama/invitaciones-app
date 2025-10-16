@@ -9,6 +9,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import EventCreator from './pages/EventCreator';
 import AttendanceScanner from './pages/AttendanceScanner';
 import ProtectedRoute from './components/ProtectedRoute';
+import RegisterForm from './components/RegisterForm';
 
 function App() {
   return (
@@ -18,6 +19,7 @@ function App() {
           <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50">
             <Routes>
               <Route path="/" element={<HomePage />} />
+              <Route path="/register" element={<RegisterForm />} />
               <Route path="/invitation/:eventId/:guestId" element={<InvitationView />} />
               <Route path="/confirm/:eventId/:guestId" element={<ConfirmationPage />} />
               <Route path="/admin" element={

@@ -1,43 +1,74 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, Users, QrCode, MapPin, Settings } from 'lucide-react';
+import { Calendar, Users, QrCode, MapPin, Settings, Sparkles } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 const HomePage = () => {
   return (
     <div className="min-h-screen">
       {/* Hero Section */}
-      <div className="relative bg-gradient-to-br from-purple-600 via-pink-600 to-red-500">
+      <div className="relative bg-gradient-to-br from-purple-600 via-pink-600 to-red-500 overflow-hidden">
+        {/* Animated background elements */}
+        <div className="absolute inset-0">
+          <div className="absolute top-10 left-10 w-72 h-72 bg-white opacity-10 rounded-full blur-3xl animate-pulse"></div>
+          <div className="absolute bottom-10 right-10 w-96 h-96 bg-pink-300 opacity-10 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
+        </div>
         <div className="absolute inset-0 bg-black opacity-20"></div>
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
+
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-24 md:py-32">
           <div className="text-center">
-            <div className="flex justify-center mb-8">
-              <div className="bg-white bg-opacity-20 backdrop-blur-sm p-4 rounded-full">
-                <Calendar className="h-12 w-12 text-white" />
+            <motion.div
+              className="flex justify-center mb-8"
+              initial={{ scale: 0, rotate: -180 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ type: "spring", stiffness: 260, damping: 20 }}
+            >
+              <div className="bg-white bg-opacity-20 backdrop-blur-sm p-4 rounded-full shadow-2xl">
+                <Calendar className="h-12 w-12 sm:h-16 sm:w-16 text-white" />
               </div>
-            </div>
-            <h1 className="text-4xl md:text-6xl font-bold text-white mb-6">
+            </motion.div>
+
+            <motion.h1
+              className="text-4xl sm:text-5xl md:text-7xl font-bold text-white mb-6"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+            >
               EventInvite
-            </h1>
-            <p className="text-xl md:text-2xl text-white opacity-90 mb-8 max-w-3xl mx-auto">
-              Crea invitaciones digitales elegantes para tus eventos especiales. 
+              <Sparkles className="inline-block ml-2 h-8 w-8 sm:h-10 sm:w-10 text-yellow-300 animate-pulse" />
+            </motion.h1>
+
+            <motion.p
+              className="text-lg sm:text-xl md:text-2xl text-white opacity-90 mb-8 max-w-3xl mx-auto px-4"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+            >
+              Crea invitaciones digitales elegantes para tus eventos especiales.
               Gestiona confirmaciones, controla asistencias y personaliza cada detalle.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            </motion.p>
+
+            <motion.div
+              className="flex flex-col sm:flex-row gap-4 justify-center px-4"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.6 }}
+            >
               <Link
                 to="/admin"
-                className="inline-flex items-center px-8 py-4 border border-transparent text-lg font-medium rounded-lg text-purple-600 bg-white hover:bg-gray-50 transition duration-300 shadow-lg"
+                className="inline-flex items-center justify-center px-6 sm:px-8 py-3 sm:py-4 border border-transparent text-base sm:text-lg font-medium rounded-lg text-purple-600 bg-white hover:bg-gray-50 hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-2xl"
               >
                 <Settings className="mr-2 h-5 w-5" />
                 Panel Administrativo
               </Link>
               <Link
                 to="/invitation/event-1/guest-1"
-                className="inline-flex items-center px-8 py-4 border-2 border-white text-lg font-medium rounded-lg text-white hover:bg-white hover:text-purple-600 transition duration-300"
+                className="inline-flex items-center justify-center px-6 sm:px-8 py-3 sm:py-4 border-2 border-white text-base sm:text-lg font-medium rounded-lg text-white hover:bg-white hover:text-purple-600 hover:scale-105 transition-all duration-300"
               >
                 <Users className="mr-2 h-5 w-5" />
                 Ver Demo Invitación
               </Link>
-            </div>
+            </motion.div>
           </div>
         </div>
       </div>
@@ -136,13 +167,24 @@ interface FeatureCardProps {
 
 const FeatureCard: React.FC<FeatureCardProps> = ({ icon, title, description }) => {
   return (
-    <div className="bg-gray-50 p-8 rounded-xl hover:shadow-lg transition duration-300">
-      <div className="flex justify-center mb-4">
+    <motion.div
+      className="bg-gradient-to-br from-gray-50 to-gray-100 p-6 sm:p-8 rounded-xl hover:shadow-2xl transition-shadow duration-300 border border-gray-200"
+      initial={{ opacity: 0, y: 50 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true }}
+      transition={{ duration: 0.5 }}
+      whileHover={{ scale: 1.05, translateY: -10 }}
+    >
+      <motion.div
+        className="flex justify-center mb-4"
+        whileHover={{ rotate: 360 }}
+        transition={{ duration: 0.6 }}
+      >
         {icon}
-      </div>
-      <h3 className="text-xl font-bold text-gray-900 mb-3 text-center">{title}</h3>
-      <p className="text-gray-600 text-center leading-relaxed">{description}</p>
-    </div>
+      </motion.div>
+      <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-3 text-center">{title}</h3>
+      <p className="text-sm sm:text-base text-gray-600 text-center leading-relaxed">{description}</p>
+    </motion.div>
   );
 };
 

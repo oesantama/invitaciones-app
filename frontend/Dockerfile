@@ -3,41 +3,36 @@ FROM node:22-slim AS builder
 
 WORKDIR /app
 
-# Copiar package.json y package-lock.json
+# Copiar archivos de dependencias
 COPY package*.json ./
 
-# Instalar dependencias usando npm ci
-RUN npm ci
+# Instalar dependencias con optimizaciones
+RUN npm install --prefer-offline --no-audit
 
-# Copiar el resto del código de la aplicación
+# Copiar el resto del código
 COPY . .
 
-# Ejecutar el build del proyecto (Quasar CLI, Vue CLI, etc.)
-# Esto generará los archivos estáticos en la carpeta 'dist'
+# Build con optimizaciones
 RUN npm run build
 
-# --- Etapa 2: Ejecución (Runner) ---
-# Usamos la misma imagen de Node.js, pero ahora solo para ejecutar la app.
-# Esta imagen será más grande que una de Nginx, pero evita la dependencia de Nginx.
-FROM node:22-slim AS runner
+# --- Etapa 2: Servidor con Nginx (Más liviano y rápido) ---
+FROM nginx:alpine AS runner
 
-WORKDIR /app
+WORKDIR /usr/share/nginx/html
 
-# Copiar SOLO los archivos de la carpeta 'dist' de la etapa builder.
-# Esto mantiene la imagen limpia, sin el código fuente de desarrollo.
-COPY --from=builder /app/dist ./dist
+# Remover archivos por defecto de nginx
+RUN rm -rf ./*
 
-# Instalar un servidor de archivos estáticos como 'serve' globalmente
-# Si usas Quasar, puede que ya tengas un comando de producción.
-# Si usas Vue CLI, el 'dist' suele ser servible directamente.
-RUN npm install -g serve
+# Copiar archivos del build
+COPY --from=builder /app/dist .
 
-# Exponer el puerto que el servidor usará (ej: 80 o 3000)
-# 'serve' por defecto usa el puerto 5000, pero podemos configurarlo.
+# Copiar configuración personalizada de nginx
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# Instalar wget para healthcheck
+RUN apk add --no-cache wget
+
 EXPOSE 9001
 
-# Comando para ejecutar el servidor de archivos estáticos.
-# 'serve -s dist' le dice que sirva el contenido de la carpeta 'dist'.
-# '-l 80' le dice que escuche en el puerto 80.
-# '-C' (o --cors) es útil si tu frontend necesita hacer requests a otro origen.
-CMD ["serve", "-s", "dist", "-l", "9001", "--cors"]
+# Nginx en primer plano
+CMD ["nginx", "-g", "daemon off;"]

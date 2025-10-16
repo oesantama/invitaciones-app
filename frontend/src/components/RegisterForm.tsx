@@ -1,27 +1,41 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Mail, Lock, Calendar, Sparkles } from 'lucide-react';
+import { Mail, Lock, Calendar, User, Phone, Sparkles } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-const LoginForm = () => {
+const RegisterForm = () => {
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const { login } = useAuth();
+  const { register } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    if (password !== confirmPassword) {
+      setError('Las contraseñas no coinciden');
+      return;
+    }
+
+    if (password.length < 6) {
+      setError('La contraseña debe tener al menos 6 caracteres');
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      await login(email, password);
+      await register(name, email, password, phone);
       navigate('/admin');
     } catch (error: any) {
-      setError(error.message || 'Email o contraseña incorrectos');
+      setError(error.message || 'Error al registrarse. Intenta nuevamente.');
     } finally {
       setIsLoading(false);
     }
@@ -57,11 +71,11 @@ const LoginForm = () => {
             </motion.div>
           </div>
           <h2 className="mt-6 text-3xl sm:text-4xl font-bold text-gray-900 flex items-center justify-center gap-2">
-            Panel Administrativo
+            Crear Cuenta
             <Sparkles className="h-6 w-6 text-yellow-500 animate-pulse" />
           </h2>
           <p className="mt-2 text-sm sm:text-base text-gray-600">
-            Accede para gestionar tus eventos e invitaciones
+            Regístrate para crear tus eventos e invitaciones
           </p>
         </motion.div>
 
@@ -78,6 +92,25 @@ const LoginForm = () => {
           )}
 
           <form className="space-y-4" onSubmit={handleSubmit}>
+            <div>
+              <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
+                Nombre Completo
+              </label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <input
+                  id="name"
+                  name="name"
+                  type="text"
+                  required
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="pl-10 w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition duration-200"
+                  placeholder="Juan Pérez"
+                />
+              </div>
+            </div>
+
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
                 Correo Electrónico
@@ -98,6 +131,24 @@ const LoginForm = () => {
             </div>
 
             <div>
+              <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-2">
+                Teléfono (Opcional)
+              </label>
+              <div className="relative">
+                <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <input
+                  id="phone"
+                  name="phone"
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="pl-10 w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition duration-200"
+                  placeholder="+57 300 123 4567"
+                />
+              </div>
+            </div>
+
+            <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
                 Contraseña
               </label>
@@ -112,6 +163,27 @@ const LoginForm = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   className="pl-10 w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition duration-200"
                   placeholder="••••••••"
+                  minLength={6}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
+                Confirmar Contraseña
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <input
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  type="password"
+                  required
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="pl-10 w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition duration-200"
+                  placeholder="••••••••"
+                  minLength={6}
                 />
               </div>
             </div>
@@ -121,18 +193,18 @@ const LoginForm = () => {
               disabled={isLoading}
               className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isLoading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
+              {isLoading ? 'Creando cuenta...' : 'Crear Cuenta'}
             </button>
           </form>
 
-          <div className="text-center space-y-2">
+          <div className="text-center">
             <p className="text-sm text-gray-600">
-              ¿No tienes cuenta?{' '}
+              ¿Ya tienes cuenta?{' '}
               <Link
-                to="/register"
+                to="/admin"
                 className="font-medium text-purple-600 hover:text-purple-500 transition duration-200"
               >
-                Regístrate aquí
+                Inicia sesión aquí
               </Link>
             </p>
           </div>
@@ -142,4 +214,4 @@ const LoginForm = () => {
   );
 };
 
-export default LoginForm;
+export default RegisterForm;

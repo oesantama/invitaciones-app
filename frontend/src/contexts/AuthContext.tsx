@@ -1,16 +1,20 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { authAPI } from '../services/api';
 
 interface User {
-  id: string;
+  _id: string;
   email: string;
   name: string;
+  phone?: string;
   avatar?: string;
+  role: string;
 }
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  register: (name: string, email: string, password: string, phone?: string) => Promise<void>;
   logout: () => void;
   loginWithGoogle: () => Promise<void>;
 }
@@ -34,42 +38,61 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Simulate checking for existing auth session
-    const savedUser = localStorage.getItem('user');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
-    setLoading(false);
+    // Check for existing auth session
+    const initAuth = async () => {
+      const token = localStorage.getItem('token');
+      if (token) {
+        try {
+          const response = await authAPI.getMe();
+          setUser(response.data.data.user);
+        } catch (error) {
+          console.error('Auth init error:', error);
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+        }
+      }
+      setLoading(false);
+    };
+
+    initAuth();
   }, []);
 
   const login = async (email: string, password: string) => {
-    // Mock login - in real app, this would call your auth service
-    const mockUser = {
-      id: '1',
-      email,
-      name: email.split('@')[0],
-      avatar: `https://images.pexels.com/photos/771742/pexels-photo-771742.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop`
-    };
-    
-    setUser(mockUser);
-    localStorage.setItem('user', JSON.stringify(mockUser));
+    try {
+      const response = await authAPI.login(email, password);
+      const { user: userData, token } = response.data.data;
+
+      setUser(userData);
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(userData));
+    } catch (error: any) {
+      console.error('Login error:', error);
+      throw new Error(error.response?.data?.error?.message || 'Login failed');
+    }
+  };
+
+  const register = async (name: string, email: string, password: string, phone?: string) => {
+    try {
+      const response = await authAPI.register({ name, email, password, phone });
+      const { user: userData, token } = response.data.data;
+
+      setUser(userData);
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(userData));
+    } catch (error: any) {
+      console.error('Register error:', error);
+      throw new Error(error.response?.data?.error?.message || 'Registration failed');
+    }
   };
 
   const loginWithGoogle = async () => {
-    // Mock Google login
-    const mockUser = {
-      id: '1',
-      email: 'user@gmail.com',
-      name: 'Usuario Demo',
-      avatar: `https://images.pexels.com/photos/771742/pexels-photo-771742.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop`
-    };
-    
-    setUser(mockUser);
-    localStorage.setItem('user', JSON.stringify(mockUser));
+    // TODO: Implement Google OAuth flow
+    throw new Error('Google login not implemented yet');
   };
 
   const logout = () => {
     setUser(null);
+    localStorage.removeItem('token');
     localStorage.removeItem('user');
   };
 
@@ -77,6 +100,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     user,
     loading,
     login,
+    register,
     logout,
     loginWithGoogle
   };

@@ -12,7 +12,25 @@ const EventCreator = () => {
   const { user } = useAuth();
   const { addEvent } = useEvent();
 
+  const eventTypes = [
+    { value: 'boda', label: '💒 Boda', colors: { primary: '#8B5CF6', secondary: '#EC4899', accent: '#F59E0B' } },
+    { value: 'cumpleanos', label: '🎂 Cumpleaños', colors: { primary: '#EF4444', secondary: '#F59E0B', accent: '#10B981' } },
+    { value: 'quince', label: '👗 Quinceañera', colors: { primary: '#EC4899', secondary: '#8B5CF6', accent: '#F472B6' } },
+    { value: 'bautizo', label: '👶 Bautizo', colors: { primary: '#3B82F6', secondary: '#60A5FA', accent: '#93C5FD' } },
+    { value: 'primera-comunion', label: '🕊️ Primera Comunión', colors: { primary: '#ffffff', secondary: '#D4AF37', accent: '#F3F4F6' } },
+    { value: 'baby-shower', label: '🍼 Baby Shower', colors: { primary: '#FCD34D', secondary: '#FDE68A', accent: '#FEF3C7' } },
+    { value: 'grado', label: '🎓 Graduación', colors: { primary: '#1E3A8A', secondary: '#3B82F6', accent: '#DBEAFE' } },
+    { value: 'aniversario', label: '💕 Aniversario', colors: { primary: '#DC2626', secondary: '#EF4444', accent: '#FECACA' } },
+    { value: 'novena', label: '🕯️ Novena', colors: { primary: '#7C3AED', secondary: '#A78BFA', accent: '#DDD6FE' } },
+    { value: 'despedida-soltera', label: '👰 Despedida de Soltera/o', colors: { primary: '#F59E0B', secondary: '#FBBF24', accent: '#FDE68A' } },
+    { value: 'revelacion-sexo', label: '🎀 Revelación de Sexo', colors: { primary: '#EC4899', secondary: '#3B82F6', accent: '#E0E7FF' } },
+    { value: 'empresarial', label: '💼 Evento Empresarial', colors: { primary: '#1F2937', secondary: '#4B5563', accent: '#9CA3AF' } },
+    { value: 'confirmacion', label: '✝️ Confirmación', colors: { primary: '#B45309', secondary: '#D97706', accent: '#FCD34D' } },
+    { value: 'otro', label: '🎉 Otro Evento', colors: { primary: '#8B5CF6', secondary: '#EC4899', accent: '#F59E0B' } }
+  ];
+
   const [eventData, setEventData] = useState({
+    eventType: '',
     title: '',
     description: '',
     date: '',
@@ -43,6 +61,22 @@ const EventCreator = () => {
   });
 
   const [isImporting, setIsImporting] = useState(false);
+
+  const handleEventTypeChange = (type: string) => {
+    const selectedType = eventTypes.find(t => t.value === type);
+    if (selectedType) {
+      setEventData(prev => ({
+        ...prev,
+        eventType: type,
+        theme: {
+          ...prev.theme,
+          primaryColor: selectedType.colors.primary,
+          secondaryColor: selectedType.colors.secondary,
+          accentColor: selectedType.colors.accent
+        }
+      }));
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -211,6 +245,29 @@ const EventCreator = () => {
           <div className="bg-white rounded-lg shadow-sm p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Información Básica</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Tipo de Evento *
+                </label>
+                <select
+                  value={eventData.eventType}
+                  onChange={(e) => handleEventTypeChange(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-base"
+                  required
+                >
+                  <option value="">Selecciona el tipo de evento...</option>
+                  {eventTypes.map(type => (
+                    <option key={type.value} value={type.value}>
+                      {type.label}
+                    </option>
+                  ))}
+                </select>
+                {eventData.eventType && (
+                  <p className="mt-2 text-sm text-gray-500">
+                    Se aplicará automáticamente una paleta de colores personalizada para {eventTypes.find(t => t.value === eventData.eventType)?.label}
+                  </p>
+                )}
+              </div>
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Título del Evento

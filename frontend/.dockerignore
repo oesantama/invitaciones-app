@@ -1,5 +1,37 @@
-# frontend/.dockerignore
+# Dependencias
 node_modules
+
+# Build output
 dist
-.DS_Store
+
+# Archivos de entorno
 .env
+.env.local
+.env.production
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Git
+.git
+.gitignore
+
+# Testing
+coverage
+.nyc_output
+
+# Logs
+*.log
+npm-debug.log*
+
+# Misc
+README.md
+.dockerignore
+Dockerfile

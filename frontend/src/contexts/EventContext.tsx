@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useMemo, useCallback } from 'react';
 
 export interface Guest {
   id: string;
@@ -148,27 +148,27 @@ export const EventProvider: React.FC<EventProviderProps> = ({ children }) => {
   
   const [currentEvent, setCurrentEvent] = useState<EventData | null>(null);
 
-  const addEvent = (eventData: Omit<EventData, 'id' | 'createdAt'>) => {
+  const addEvent = useCallback((eventData: Omit<EventData, 'id' | 'createdAt'>) => {
     const newEvent: EventData = {
       ...eventData,
       id: `event-${Date.now()}`,
       createdAt: new Date().toISOString()
     };
-    
-    setEvents(prev => [...prev, newEvent]);
-  };
 
-  const updateEvent = (eventId: string, updates: Partial<EventData>) => {
-    setEvents(prev => prev.map(event => 
+    setEvents(prev => [...prev, newEvent]);
+  }, []);
+
+  const updateEvent = useCallback((eventId: string, updates: Partial<EventData>) => {
+    setEvents(prev => prev.map(event =>
       event.id === eventId ? { ...event, ...updates } : event
     ));
-  };
+  }, []);
 
-  const getEvent = (eventId: string) => {
+  const getEvent = useCallback((eventId: string) => {
     return events.find(event => event.id === eventId);
-  };
+  }, [events]);
 
-  const confirmAttendance = (eventId: string, guestId: string, data: any) => {
+  const confirmAttendance = useCallback((eventId: string, guestId: string, data: any) => {
     setEvents(prev => prev.map(event => {
       if (event.id === eventId) {
         return {
@@ -188,9 +188,9 @@ export const EventProvider: React.FC<EventProviderProps> = ({ children }) => {
       }
       return event;
     }));
-  };
+  }, []);
 
-  const markAttended = (eventId: string, guestId: string) => {
+  const markAttended = useCallback((eventId: string, guestId: string) => {
     setEvents(prev => prev.map(event => {
       if (event.id === eventId) {
         return {
@@ -205,9 +205,9 @@ export const EventProvider: React.FC<EventProviderProps> = ({ children }) => {
       }
       return event;
     }));
-  };
+  }, []);
 
-  const value = {
+  const value = useMemo(() => ({
     events,
     currentEvent,
     addEvent,
@@ -215,7 +215,7 @@ export const EventProvider: React.FC<EventProviderProps> = ({ children }) => {
     getEvent,
     confirmAttendance,
     markAttended
-  };
+  }), [events, currentEvent, addEvent, updateEvent, getEvent, confirmAttendance, markAttended]);
 
   return <EventContext.Provider value={value}>{children}</EventContext.Provider>;
 };
