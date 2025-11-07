@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { useEvent } from '../contexts/EventContext';
+import { useQuery } from '@tanstack/react-query';
+import { eventsAPI } from '../services/api';
+import { IEvent, IGuest } from '../types';
+
 import { 
   Calendar, 
   Plus, 
@@ -16,22 +19,39 @@ import {
   Send
 } from 'lucide-react';
 import { sendBulkWhatsAppInvitations } from '../utils/whatsappSender';
+import StatsCard from '../components/StatsCard'; // Import StatsCard
 
 const AdminDashboard = () => {
   const { user, logout } = useAuth();
-  const { events } = useEvent();
   const [selectedEvent, setSelectedEvent] = useState<string>('');
 
-  const userEvents = events.filter(event => event.createdBy === user?.id);
-  const currentEvent = selectedEvent ? events.find(e => e.id === selectedEvent) : userEvents[0];
+  const { data: events, isLoading, isError, error } = useQuery<IEvent[]>({ // Type events as IEvent[]
+    queryKey: ['events'],
+    queryFn: async () => {
+      const response = await eventsAPI.getAll();
+      return response.data.data;
+    },
+    enabled: !!user, // Only fetch if user is logged in
+  });
 
-  const getEventStats = (event: any) => {
-    const confirmed = event.guests.filter((g: any) => g.confirmed).length;
-    const pending = event.guests.filter((g: any) => !g.confirmed).length;
-    const attended = event.guests.filter((g: any) => g.attended).length;
+  const userEvents: IEvent[] = events?.filter(event => event.userId === user?._id) || [];
+  const currentEvent: IEvent | undefined = selectedEvent ? userEvents.find(e => e._id === selectedEvent) : userEvents[0];
+
+  const getEventStats = (event: IEvent) => {
+    const confirmed = event.guests.filter((g: IGuest) => g.confirmed).length;
+    const pending = event.guests.filter((g: IGuest) => !g.confirmed).length;
+    const attended = event.guests.filter((g: IGuest) => g.attended).length;
     
     return { confirmed, pending, attended, total: event.guests.length };
   };
+
+  if (isLoading) {
+    return <div className="min-h-screen flex items-center justify-center text-lg font-semibold">Cargando eventos...</div>;
+  }
+
+  if (isError) {
+    return <div className="min-h-screen flex items-center justify-center text-lg font-semibold text-red-600">Error al cargar eventos: {error?.message}</div>;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -107,12 +127,12 @@ const AdminDashboard = () => {
                 </label>
                 <select
                   id="eventSelect"
-                  value={selectedEvent || userEvents[0]?.id}
+                  value={selectedEvent || userEvents[0]?._id}
                   onChange={(e) => setSelectedEvent(e.target.value)}
                   className="max-w-md px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 >
                   {userEvents.map((event) => (
-                    <option key={event.id} value={event.id}>
+                    <option key={event._id} value={event._id}>
                       {event.title}
                     </option>
                   ))}
@@ -164,14 +184,14 @@ const AdminDashboard = () => {
                   </h3>
                   <div className="flex flex-wrap gap-4">
                     <Link
-                      to={`/invitation/${currentEvent.id}/${currentEvent.guests[0]?.id}`}
+                      to={`/invitation/${currentEvent._id}/${currentEvent.guests[0]?._id}`}
                       className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-200"
                     >
                       <Eye className="mr-2 h-4 w-4" />
                       Vista Previa
                     </Link>
                     <Link
-                      to={`/admin/scanner/${currentEvent.id}`}
+                      to={`/admin/scanner/${currentEvent._id}`}
                       className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition duration-200"
                     >
                       <QrCode className="mr-2 h-4 w-4" />
@@ -220,8 +240,8 @@ const AdminDashboard = () => {
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
-                        {currentEvent.guests.map((guest) => (
-                          <tr key={guest.id} className="hover:bg-gray-50">
+                        {currentEvent.guests.map((guest: IGuest) => (
+                          <tr key={guest._id} className="hover:bg-gray-50">
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="text-sm font-medium text-gray-900">
                                 {guest.name}
@@ -270,36 +290,6 @@ const AdminDashboard = () => {
             )}
           </>
         )}
-      </div>
-    </div>
-  );
-};
-
-interface StatsCardProps {
-  title: string;
-  value: number;
-  icon: React.ReactNode;
-  color: 'blue' | 'green' | 'yellow' | 'purple';
-}
-
-const StatsCard: React.FC<StatsCardProps> = ({ title, value, icon, color }) => {
-  const colorClasses = {
-    blue: 'bg-blue-500',
-    green: 'bg-green-500',
-    yellow: 'bg-yellow-500',
-    purple: 'bg-purple-500'
-  };
-
-  return (
-    <div className="bg-white rounded-lg shadow-sm p-6">
-      <div className="flex items-center">
-        <div className={`p-2 rounded-lg ${colorClasses[color]} text-white mr-4`}>
-          {icon}
-        </div>
-        <div>
-          <p className="text-sm font-medium text-gray-600">{title}</p>
-          <p className="text-2xl font-bold text-gray-900">{value}</p>
-        </div>
       </div>
     </div>
   );

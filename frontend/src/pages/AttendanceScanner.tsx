@@ -1,18 +1,36 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useEvent } from '../contexts/EventContext';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { eventsAPI, guestsAPI } from '../services/api';
+import { IEvent, IGuest } from '../types';
 import { ArrowLeft, QrCode, CheckCircle, AlertCircle, Camera } from 'lucide-react';
 
 const AttendanceScanner = () => {
-  const { eventId } = useParams();
+  const { eventId } = useParams<{ eventId: string }>();
   const navigate = useNavigate();
-  const { getEvent, markAttended } = useEvent();
+  const queryClient = useQueryClient();
   const [isScanning, setIsScanning] = useState(false);
   const [scanResult, setScanResult] = useState<string>('');
   const [attendanceResult, setAttendanceResult] = useState<any>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  const event = getEvent(eventId || '');
+  const { data: event, isLoading, isError, error } = useQuery<IEvent>({
+    queryKey: ['event', eventId],
+    queryFn: async () => {
+      if (!eventId) throw new Error('Event ID is missing');
+      const response = await eventsAPI.getById(eventId);
+      return response.data.data;
+    },
+    enabled: !!eventId,
+  });
+
+  const markAttendedMutation = useMutation({
+    mutationFn: ({ eventId, guestId }: { eventId: string; guestId: string }) =>
+      guestsAPI.markAttended(eventId, guestId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['event', eventId] }); // Invalidate and refetch event data
+    },
+  });
 
   useEffect(() => {
     if (isScanning) {
@@ -53,21 +71,29 @@ const AttendanceScanner = () => {
     processAttendance(code);
   };
 
-  const processAttendance = (code: string) => {
+  const processAttendance = async (code: string) => {
     if (!event) return;
 
-    // Find guest by confirmation code
     const guest = event.guests.find(g => g.confirmationCode === code);
     
     if (guest) {
       if (guest.confirmed) {
         if (!guest.attended) {
-          markAttended(eventId!, guest.id);
-          setAttendanceResult({
-            success: true,
-            guest: guest,
-            message: 'Asistencia registrada exitosamente'
-          });
+          try {
+            await markAttendedMutation.mutateAsync({ eventId: event._id, guestId: guest._id });
+            setAttendanceResult({
+              success: true,
+              guest: guest,
+              message: 'Asistencia registrada exitosamente'
+            });
+          } catch (mutationError: any) {
+            console.error('Error marking attendance:', mutationError);
+            setAttendanceResult({
+              success: false,
+              guest: guest,
+              message: mutationError.response?.data?.error?.message || 'Error al registrar asistencia'
+            });
+          }
         } else {
           setAttendanceResult({
             success: false,
@@ -90,12 +116,33 @@ const AttendanceScanner = () => {
       });
     }
 
-    // Clear result after 3 seconds
     setTimeout(() => {
       setAttendanceResult(null);
       setScanResult('');
     }, 3000);
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-pink-50">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Cargando escáner...</h2>
+          <p className="text-gray-600">Obteniendo detalles del evento.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-pink-50">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Error al cargar el evento</h2>
+          <p className="text-gray-600">{error?.message || 'Ha ocurrido un error inesperado.'}</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!event) {
     return (

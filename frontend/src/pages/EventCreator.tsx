@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { useEvent, EventData } from '../contexts/EventContext';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { eventsAPI } from '../services/api';
+import { IEvent, IGuest, IScheduleItem, ILocation, ITheme, IMedia, ISettings } from '../types';
 import { ArrowLeft, Save, Plus, Trash2, Upload, Download, Send } from 'lucide-react';
 import { processExcelFile, downloadExcelTemplate, GuestImportData } from '../utils/excelProcessor';
 import { generateUniqueCode } from '../utils/codeGenerator';
@@ -10,7 +12,19 @@ import { sendBulkWhatsAppInvitations } from '../utils/whatsappSender';
 const EventCreator = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { addEvent } = useEvent();
+  const queryClient = useQueryClient();
+
+  const createEventMutation = useMutation({
+    mutationFn: (newEvent: Omit<IEvent, '_id' | 'createdAt' | 'updatedAt'>) =>
+      eventsAPI.create(newEvent),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+      navigate('/admin');
+    },
+    onError: (error: any) => {
+      alert('Error al crear el evento: ' + (error.response?.data?.error?.message || error.message));
+    },
+  });
 
   const eventTypes = [
     { value: 'boda', label: '💒 Boda', colors: { primary: '#8B5CF6', secondary: '#EC4899', accent: '#F59E0B' } },
@@ -29,8 +43,7 @@ const EventCreator = () => {
     { value: 'otro', label: '🎉 Otro Evento', colors: { primary: '#8B5CF6', secondary: '#EC4899', accent: '#F59E0B' } }
   ];
 
-  const [eventData, setEventData] = useState({
-    eventType: '',
+  const [eventData, setEventData] = useState<Partial<IEvent>>({
     title: '',
     description: '',
     date: '',
@@ -41,7 +54,7 @@ const EventCreator = () => {
     },
     hosts: [''],
     schedule: [{ time: '', activity: '', description: '' }],
-    guests: [{ name: '', phone: '', confirmationCode: '' }],
+    guests: [],
     theme: {
       primaryColor: '#8B5CF6',
       secondaryColor: '#EC4899',
@@ -57,7 +70,9 @@ const EventCreator = () => {
       allowCompanions: true,
       requireMenuSelection: true,
       maxCompanions: 2
-    }
+    },
+    userId: user?._id || '', // Initialize with user ID
+    isActive: true,
   });
 
   const [isImporting, setIsImporting] = useState(false);
@@ -67,7 +82,7 @@ const EventCreator = () => {
     if (selectedType) {
       setEventData(prev => ({
         ...prev,
-        eventType: type,
+        eventType: type as IEvent['eventType'], // Cast to correct type
         theme: {
           ...prev.theme,
           primaryColor: selectedType.colors.primary,
@@ -78,32 +93,52 @@ const EventCreator = () => {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    const processedGuests = eventData.guests.map(guest => ({
-      id: `guest-${Date.now()}-${Math.random()}`,
-      name: guest.name,
-      phone: guest.phone,
+    if (!user?._id) {
+      alert('Debes iniciar sesión para crear un evento.');
+      return;
+    }
+
+    const processedGuests: IGuest[] = eventData.guests?.map(guest => ({
+      _id: `guest-${Date.now()}-${Math.random()}`,
+      name: guest.name || '',
+      phone: guest.phone || '',
       confirmed: false,
       attended: false,
       companions: 0,
-      menuType: 'adult' as const,
+      menuType: 'adult',
       confirmationCode: guest.confirmationCode || generateUniqueCode(
-        eventData.guests.map(g => g.confirmationCode).filter(Boolean),
-        guest.name,
+        eventData.guests?.map(g => g.confirmationCode).filter(Boolean) as string[],
+        guest.name || '',
         `event-${Date.now()}`
-      )
-    }));
+      ),
+      // Default values for other IGuest properties
+      email: guest.email || undefined,
+      confirmedAt: undefined,
+    })) || [];
 
-    const newEvent: Omit<EventData, 'id' | 'createdAt'> = {
-      ...eventData,
+    const newEvent: Omit<IEvent, '_id' | 'createdAt' | 'updatedAt'> = {
+      ...eventData as IEvent,
       guests: processedGuests,
-      createdBy: user?.id || '1'
+      userId: user._id,
+      date: eventData.date ? new Date(eventData.date).toISOString() : '',
+      // Ensure all required fields are present or have defaults
+      title: eventData.title || '',
+      description: eventData.description || '',
+      location: eventData.location || { name: '', address: '', coordinates: { lat: 0, lng: 0 } },
+      hosts: eventData.hosts || [],
+      schedule: eventData.schedule || [],
+      theme: eventData.theme || { primaryColor: '', secondaryColor: '', accentColor: '', fontFamily: '', backgroundColor: '' },
+      settings: eventData.settings || { allowCompanions: true, requireMenuSelection: false, maxCompanions: 2 },
+      isActive: true,
     };
 
-    addEvent(newEvent);
-    navigate('/admin');
+    try {
+      await createEventMutation.mutateAsync(newEvent);
+    } catch (mutationError) {
+      // Error handled by onError in useMutation
+    }
   };
 
   const handleExcelImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -112,10 +147,10 @@ const EventCreator = () => {
 
     setIsImporting(true);
     try {
-      const importedGuests = await processExcelFile(file);
-      const existingCodes = eventData.guests.map(g => g.confirmationCode).filter(Boolean);
+      const importedGuests: GuestImportData[] = await processExcelFile(file);
+      const existingCodes = eventData.guests?.map(g => g.confirmationCode).filter(Boolean) as string[];
       
-      const processedGuests = importedGuests.map(guest => ({
+      const processedGuests: Partial<IGuest>[] = importedGuests.map(guest => ({
         name: guest.name,
         phone: guest.phone,
         confirmationCode: generateUniqueCode(existingCodes, guest.name, `event-${Date.now()}`)
@@ -123,7 +158,7 @@ const EventCreator = () => {
 
       setEventData(prev => ({
         ...prev,
-        guests: [...prev.guests, ...processedGuests]
+        guests: [...(prev.guests || []), ...processedGuests as IGuest[]]
       }));
 
       alert(`Se importaron ${importedGuests.length} invitados exitosamente`);
@@ -139,42 +174,42 @@ const EventCreator = () => {
   const addHost = () => {
     setEventData(prev => ({
       ...prev,
-      hosts: [...prev.hosts, '']
+      hosts: [...(prev.hosts || []), '']
     }));
   };
 
   const removeHost = (index: number) => {
     setEventData(prev => ({
       ...prev,
-      hosts: prev.hosts.filter((_, i) => i !== index)
+      hosts: prev.hosts?.filter((_, i) => i !== index)
     }));
   };
 
   const updateHost = (index: number, value: string) => {
     setEventData(prev => ({
       ...prev,
-      hosts: prev.hosts.map((host, i) => i === index ? value : host)
+      hosts: prev.hosts?.map((host, i) => i === index ? value : host)
     }));
   };
 
   const addScheduleItem = () => {
     setEventData(prev => ({
       ...prev,
-      schedule: [...prev.schedule, { time: '', activity: '', description: '' }]
+      schedule: [...(prev.schedule || []), { time: '', activity: '', description: '' }]
     }));
   };
 
   const removeScheduleItem = (index: number) => {
     setEventData(prev => ({
       ...prev,
-      schedule: prev.schedule.filter((_, i) => i !== index)
+      schedule: prev.schedule?.filter((_, i) => i !== index)
     }));
   };
 
   const updateScheduleItem = (index: number, field: string, value: string) => {
     setEventData(prev => ({
       ...prev,
-      schedule: prev.schedule.map((item, i) => 
+      schedule: prev.schedule?.map((item, i) => 
         i === index ? { ...item, [field]: value } : item
       )
     }));
@@ -183,34 +218,34 @@ const EventCreator = () => {
   const addGuest = () => {
     setEventData(prev => ({
       ...prev,
-      guests: [...prev.guests, { name: '', phone: '', confirmationCode: '' }]
+      guests: [...(prev.guests || []), { name: '', phone: '', confirmationCode: '' } as IGuest]
     }));
   };
 
   const removeGuest = (index: number) => {
     setEventData(prev => ({
       ...prev,
-      guests: prev.guests.filter((_, i) => i !== index)
+      guests: prev.guests?.filter((_, i) => i !== index)
     }));
   };
 
   const updateGuest = (index: number, field: string, value: string) => {
     setEventData(prev => ({
       ...prev,
-      guests: prev.guests.map((guest, i) => 
+      guests: prev.guests?.map((guest, i) => 
         i === index ? { 
           ...guest, 
           [field]: value,
           // Auto-generate confirmation code when name changes
           ...(field === 'name' && value ? {
             confirmationCode: generateUniqueCode(
-              prev.guests.map(g => g.confirmationCode).filter(Boolean),
+              prev.guests?.map(g => g.confirmationCode).filter(Boolean) as string[],
               value,
               `event-${Date.now()}`
             )
           } : {})
         } : guest
-      )
+      ) as IGuest[]
     }));
   };
 
@@ -230,10 +265,10 @@ const EventCreator = () => {
             </div>
             <button
               onClick={handleSubmit}
-              className="flex items-center px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 transition duration-200"
+              disabled={createEventMutation.isLoading} // Disable button during loading
+              className="flex items-center px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Save className="mr-2 h-4 w-4" />
-              Guardar Evento
+              {createEventMutation.isLoading ? 'Guardando...' : 'Guardar Evento'}
             </button>
           </div>
         </div>
@@ -250,7 +285,7 @@ const EventCreator = () => {
                   Tipo de Evento *
                 </label>
                 <select
-                  value={eventData.eventType}
+                  value={eventData.eventType || ''}
                   onChange={(e) => handleEventTypeChange(e.target.value)}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-base"
                   required
@@ -274,7 +309,7 @@ const EventCreator = () => {
                 </label>
                 <input
                   type="text"
-                  value={eventData.title}
+                  value={eventData.title || ''}
                   onChange={(e) => setEventData(prev => ({ ...prev, title: e.target.value }))}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   placeholder="Ej: Boda de Ana & Carlos"
@@ -286,7 +321,7 @@ const EventCreator = () => {
                   Descripción
                 </label>
                 <textarea
-                  value={eventData.description}
+                  value={eventData.description || ''}
                   onChange={(e) => setEventData(prev => ({ ...prev, description: e.target.value }))}
                   rows={3}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
@@ -299,7 +334,7 @@ const EventCreator = () => {
                 </label>
                 <input
                   type="datetime-local"
-                  value={eventData.date}
+                  value={eventData.date ? eventData.date.substring(0, 16) : ''}
                   onChange={(e) => setEventData(prev => ({ ...prev, date: e.target.value }))}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   required
@@ -322,7 +357,7 @@ const EventCreator = () => {
               </button>
             </div>
             <div className="space-y-3">
-              {eventData.hosts.map((host, index) => (
+              {eventData.hosts?.map((host, index) => (
                 <div key={index} className="flex gap-2">
                   <input
                     type="text"
@@ -332,7 +367,7 @@ const EventCreator = () => {
                     placeholder="Nombre del anfitrión"
                     required
                   />
-                  {eventData.hosts.length > 1 && (
+                  {eventData.hosts && eventData.hosts.length > 1 && (
                     <button
                       type="button"
                       onClick={() => removeHost(index)}
@@ -356,7 +391,7 @@ const EventCreator = () => {
                 </label>
                 <input
                   type="text"
-                  value={eventData.location.name}
+                  value={eventData.location?.name || ''}
                   onChange={(e) => setEventData(prev => ({
                     ...prev,
                     location: { ...prev.location, name: e.target.value }
@@ -372,7 +407,7 @@ const EventCreator = () => {
                 </label>
                 <input
                   type="text"
-                  value={eventData.location.address}
+                  value={eventData.location?.address || ''}
                   onChange={(e) => setEventData(prev => ({
                     ...prev,
                     location: { ...prev.location, address: e.target.value }
@@ -399,7 +434,7 @@ const EventCreator = () => {
               </button>
             </div>
             <div className="space-y-4">
-              {eventData.schedule.map((item, index) => (
+              {eventData.schedule?.map((item, index) => (
                 <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 border rounded-lg">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -430,7 +465,7 @@ const EventCreator = () => {
                     </label>
                     <input
                       type="text"
-                      value={item.description}
+                      value={item.description || ''}
                       onChange={(e) => updateScheduleItem(index, 'description', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                       placeholder="Descripción opcional"
@@ -485,7 +520,7 @@ const EventCreator = () => {
               </div>
             </div>
             <div className="space-y-4">
-              {eventData.guests.length > 0 ? eventData.guests.map((guest, index) => (
+              {eventData.guests && eventData.guests.length > 0 ? eventData.guests.map((guest, index) => (
                 <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 border rounded-lg">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -493,7 +528,7 @@ const EventCreator = () => {
                     </label>
                     <input
                       type="text"
-                      value={guest.name}
+                      value={guest.name || ''}
                       onChange={(e) => updateGuest(index, 'name', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                       placeholder="Nombre completo"
@@ -506,7 +541,7 @@ const EventCreator = () => {
                     </label>
                     <input
                       type="tel"
-                      value={guest.phone}
+                      value={guest.phone || ''}
                       onChange={(e) => updateGuest(index, 'phone', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                       placeholder="+573001234567"
@@ -519,7 +554,7 @@ const EventCreator = () => {
                     </label>
                     <input
                       type="text"
-                      value={guest.confirmationCode}
+                      value={guest.confirmationCode || ''}
                       onChange={(e) => updateGuest(index, 'confirmationCode', e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                       placeholder="Código único"
@@ -527,7 +562,7 @@ const EventCreator = () => {
                     />
                   </div>
                   <div className="flex items-end">
-                    {eventData.guests.length > 1 && (
+                    {eventData.guests && eventData.guests.length > 1 && (
                       <button
                         type="button"
                         onClick={() => removeGuest(index)}
@@ -557,7 +592,7 @@ const EventCreator = () => {
                 </label>
                 <input
                   type="checkbox"
-                  checked={eventData.settings.allowCompanions}
+                  checked={eventData.settings?.allowCompanions || false}
                   onChange={(e) => setEventData(prev => ({
                     ...prev,
                     settings: { ...prev.settings, allowCompanions: e.target.checked }
@@ -571,7 +606,7 @@ const EventCreator = () => {
                 </label>
                 <input
                   type="checkbox"
-                  checked={eventData.settings.requireMenuSelection}
+                  checked={eventData.settings?.requireMenuSelection || false}
                   onChange={(e) => setEventData(prev => ({
                     ...prev,
                     settings: { ...prev.settings, requireMenuSelection: e.target.checked }
@@ -579,13 +614,13 @@ const EventCreator = () => {
                   className="h-4 w-4 text-purple-600 rounded"
                 />
               </div>
-              {eventData.settings.allowCompanions && (
+              {eventData.settings?.allowCompanions && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Máximo de acompañantes
                   </label>
                   <select
-                    value={eventData.settings.maxCompanions}
+                    value={eventData.settings?.maxCompanions || 0}
                     onChange={(e) => setEventData(prev => ({
                       ...prev,
                       settings: { ...prev.settings, maxCompanions: Number(e.target.value) }

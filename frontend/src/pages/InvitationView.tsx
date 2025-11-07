@@ -1,24 +1,49 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { useEvent } from '../contexts/EventContext';
+import { useQuery } from '@tanstack/react-query';
+import { eventsAPI } from '../services/api';
+import { IEvent, IGuest } from '../types';
 import { MapPin, Calendar, Clock, Users, Video, Image as ImageIcon, ArrowRight, MessageCircle } from 'lucide-react';
 import { sendWhatsAppInvitation } from '../utils/whatsappSender';
 
 const InvitationView = () => {
-  const { eventId, guestId } = useParams();
-  const { getEvent } = useEvent();
-  const [event, setEvent] = useState(getEvent(eventId || ''));
+  const { eventId, guestId } = useParams<{ eventId: string; guestId: string }>();
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const [showVideo, setShowVideo] = useState(false);
 
-  const guest = event?.guests.find(g => g.id === guestId);
+  const { data: event, isLoading, isError, error } = useQuery<IEvent>({
+    queryKey: ['event', eventId],
+    queryFn: async () => {
+      if (!eventId) throw new Error('Event ID is missing');
+      const response = await eventsAPI.getById(eventId);
+      return response.data.data;
+    },
+    enabled: !!eventId,
+  });
 
-  useEffect(() => {
-    if (eventId) {
-      const eventData = getEvent(eventId);
-      setEvent(eventData);
-    }
-  }, [eventId, getEvent]);
+  const guest: IGuest | undefined = event?.guests.find(g => g._id === guestId);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-pink-50">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Cargando invitación...</h2>
+          <p className="text-gray-600">Por favor, espera un momento.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-pink-50">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Error al cargar invitación</h2>
+          <p className="text-gray-600">{error?.message || 'Ha ocurrido un error inesperado.'}</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!event || !guest) {
     return (
@@ -217,7 +242,7 @@ const InvitationView = () => {
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link
-                to={`/confirm/${eventId}/${guestId}`}
+                to={`/confirm/${event._id}/${guestId}`}
                 className="inline-flex items-center px-8 py-4 text-lg font-medium text-white rounded-lg shadow-lg hover:shadow-xl transition duration-300"
                 style={{ 
                   background: `linear-gradient(135deg, ${event.theme.primaryColor}, ${event.theme.secondaryColor})` 
@@ -227,7 +252,7 @@ const InvitationView = () => {
                 Confirmar Asistencia
               </Link>
               <button
-                onClick={() => sendWhatsAppInvitation(event, guest)}
+                onClick={() => sendWhatsAppInvitation(event, guest as IGuest)}
                 className="inline-flex items-center px-8 py-4 text-lg font-medium border-2 rounded-lg shadow-lg hover:shadow-xl transition duration-300"
                 style={{ 
                   borderColor: event.theme.primaryColor,

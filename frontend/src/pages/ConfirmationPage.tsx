@@ -1,21 +1,67 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useEvent } from '../contexts/EventContext';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { eventsAPI, guestsAPI } from '../services/api';
+import { IEvent, IGuest } from '../types';
 import { Check, Download, QrCode, Users, UtensilsCrossed } from 'lucide-react';
 import { generateInvitationPDF } from '../utils/pdfGenerator';
 
 const ConfirmationPage = () => {
-  const { eventId, guestId } = useParams();
+  const { eventId, guestId } = useParams<{ eventId: string; guestId: string }>();
   const navigate = useNavigate();
-  const { getEvent, confirmAttendance } = useEvent();
+  const queryClient = useQueryClient();
   const [confirmationCode, setConfirmationCode] = useState('');
   const [companions, setCompanions] = useState(0);
   const [menuType, setMenuType] = useState<'adult' | 'child'>('adult');
   const [isConfirmed, setIsConfirmed] = useState(false);
   const [error, setError] = useState('');
 
-  const event = getEvent(eventId || '');
-  const guest = event?.guests.find(g => g.id === guestId);
+  const { data: event, isLoading, isError, error: queryError } = useQuery<IEvent>({
+    queryKey: ['event', eventId],
+    queryFn: async () => {
+      if (!eventId) throw new Error('Event ID is missing');
+      const response = await eventsAPI.getById(eventId);
+      return response.data.data;
+    },
+    enabled: !!eventId,
+  });
+
+  const guest: IGuest | undefined = event?.guests.find(g => g._id === guestId);
+
+  const confirmAttendanceMutation = useMutation({
+    mutationFn: ({ eventId, guestId, data }: { eventId: string; guestId: string; data: { companions?: number; menuType?: string } }) =>
+      guestsAPI.confirmAttendance(eventId, guestId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['event', eventId] }); // Invalidate and refetch event data
+      setIsConfirmed(true);
+      setError('');
+    },
+    onError: (err: any) => {
+      setError(err.response?.data?.error?.message || 'Error al confirmar asistencia');
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-pink-50">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Cargando confirmación...</h2>
+          <p className="text-gray-600">Por favor, espera un momento.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-pink-50">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Error al cargar la página</h2>
+          <p className="text-gray-600">{queryError?.message || 'Ha ocurrido un error inesperado.'}</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!event || !guest) {
     return (
@@ -28,7 +74,7 @@ const ConfirmationPage = () => {
     );
   }
 
-  const handleConfirmation = (e: React.FormEvent) => {
+  const handleConfirmation = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (confirmationCode !== guest.confirmationCode) {
@@ -36,13 +82,14 @@ const ConfirmationPage = () => {
       return;
     }
 
-    confirmAttendance(eventId!, guestId!, {
-      companions,
-      menuType
+    await confirmAttendanceMutation.mutateAsync({
+      eventId: event._id,
+      guestId: guest._id,
+      data: {
+        companions,
+        menuType
+      }
     });
-
-    setIsConfirmed(true);
-    setError('');
   };
 
   const generateInvitationCard = () => {

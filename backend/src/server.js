@@ -19,7 +19,7 @@ const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://mongodb:27017/invitaci
 // Middleware
 app.use(helmet());
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || '*',
+  origin: process.env.CORS_ORIGIN,
   credentials: true
 }));
 app.use(morgan('combined'));
@@ -58,32 +58,6 @@ app.use((req, res) => {
       message: 'Route not found',
       status: 404
     }
-  });
-});
-
-// Connect to MongoDB and start server
-mongoose.connect(MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-})
-  .then(() => {
-    console.log('✅ Connected to MongoDB');
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Server running on port ${PORT}`);
-      console.log(`📡 Environment: ${process.env.NODE_ENV || 'development'}`);
-    });
-  })
-  .catch((err) => {
-    console.error('❌ MongoDB connection error:', err);
-    process.exit(1);
-  });
-
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received, closing server...');
-  mongoose.connection.close(() => {
-    console.log('MongoDB connection closed');
-    process.exit(0);
   });
 });
 

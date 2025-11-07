@@ -1,17 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { authAPI } from '../services/api';
-
-interface User {
-  _id: string;
-  email: string;
-  name: string;
-  phone?: string;
-  avatar?: string;
-  role: string;
-}
+import { IUser } from '../types';
 
 interface AuthContextType {
-  user: User | null;
+  user: IUser | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string, phone?: string) => Promise<void>;
@@ -34,7 +26,7 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<IUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

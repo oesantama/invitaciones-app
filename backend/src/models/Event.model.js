@@ -99,7 +99,6 @@ const eventSchema = new mongoose.Schema({
 
 // Index for faster queries
 eventSchema.index({ userId: 1, date: -1 });
-eventSchema.index({ 'guests.confirmationCode': 1 });
 
 // Generate unique confirmation code for guests
 eventSchema.methods.generateConfirmationCode = function(guestName) {
